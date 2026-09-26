@@ -7,6 +7,7 @@ _Deterministic checks for scheduled agent jobs: did it run, did it succeed, did 
 [![License: MIT](https://img.shields.io/github/license/ipanalytics/Agent-Cron-Evals)](LICENSE)
 [![Python: >=3.11](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org/downloads/)
 [![Version](https://img.shields.io/github/v/release/ipanalytics/Agent-Cron-Evals)](https://github.com/ipanalytics/Agent-Cron-Evals/releases)
+[![CI](https://github.com/ipanalytics/Agent-Cron-Evals/actions/workflows/tests.yml/badge.svg)](.github/workflows/tests.yml)
 
 
 <div align="center">
