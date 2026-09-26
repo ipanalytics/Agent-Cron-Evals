@@ -1,0 +1,33 @@
+{
+  "jobs_file": "~/.hermes/cron/jobs.json",
+  "output": "~/.hermes/data/cron_evals.json",
+  "delivery": true,
+  "streak_limit": 3,
+  "self_monitors": ["8eafdf0f26f9"],
+  "checks": [
+    {
+      "job": "a372f46fdbd6",
+      "name": "oura snapshot",
+      "max_age_seconds": 97200
+    },
+    {
+      "job": "0e493be45d52",
+      "name": "results watcher",
+      "max_age_seconds": 1200
+    },
+    {
+      "job": "e70f41682aea",
+      "name": "midday digest",
+      "max_age_seconds": 97200,
+      "days": [0, 1, 2, 3, 4]
+    }
+  ],
+  "state_files": [
+    {
+      "name": "watchlist autofetch",
+      "path": "~/.hermes/data/watchlist_state.json",
+      "key": "last_check",
+      "max_age_seconds": 12600
+    }
+  ]
+}
