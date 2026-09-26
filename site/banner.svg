@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="400" viewBox="0 0 1600 400" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="400" fill="#0d1117"/>
+  <defs>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff7eb3"/>
+      <stop offset="100%" stop-color="#7e8aff"/>
+    </linearGradient>
+  </defs>
+  <text x="800" y="180" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="64" fill="url(#accent)" dominant-baseline="middle">
+    agent-cron-evals
+  </text>
+  <text x="800" y="260" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28" fill="#c9d1d9" dominant-baseline="middle">
+    Deterministic checks for scheduled agent jobs
+  </text>
+</svg>

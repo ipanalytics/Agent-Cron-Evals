@@ -2,35 +2,56 @@
 
 _Русская версия: [README.ru.md](README.ru.md)_
 
-**Say which scheduled jobs are dead — and stay silent when none are.**
+_Deterministic checks for scheduled agent jobs: did it run, did it succeed, did the output arrive, is the watchdog still alive_
 
-An agent's scheduled work is the part nobody watches. A job that fails loudly is a nuisance; a
-job that fails *silently* is a hole in the system, because the one thing that would have told
-you about it was the job itself.
+[![License: MIT](https://img.shields.io/github/license/ipanalytics/Agent-Cron-Evals)](LICENSE)
+[![Python: >=3.11](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org/downloads/)
+[![Version](https://img.shields.io/github/v/release/ipanalytics/Agent-Cron-Evals)](https://github.com/ipanalytics/Agent-Cron-Evals/releases)
 
-This package is the replacement for "did my crons run?" — deterministic checks, no model, no
-dashboard, no scoring. It answers four questions:
 
-1. **Did each job run, recently enough, and did it say it succeeded?**
-2. **Did its output actually arrive?** A delivery error is a failure even when the job "succeeded".
-3. **Has any job stopped in the middle of a failure streak?** Three in a row is not a blip.
-4. **Are the helper processes still checking in?** A watchdog writes a timestamp; a stale
-   timestamp means the watchdog died quietly.
-
-A healthy run prints **nothing**. That is the whole interface: silence means fine, one line per
-problem, and the full record always written to disk.
+<div align="center">
+  <img src="./site/banner.svg" alt="Agent Cron Evals Banner" width="800">
+</div>
 
 ---
 
-## Quick start
+## Overview
+
+I monitor scheduled agent jobs to detect failures before they become problems. My approach is deterministic: no model, no dashboard, no scoring. I check that jobs ran recently enough, reported success, delivered their output, and that watchdog processes are still alive.
+
+A healthy run prints nothing. Problems appear as one line per issue, with full records always written to disk.
+
+## Architecture
+
+My checks run without a model or network connection. The architecture is simple:
+
+1. **Job freshness**: Did the job run recently enough?
+2. **Status verification**: Did it report success?
+3. **Delivery confirmation**: Did the output arrive?
+4. **Streak tracking**: Are there consecutive failures?
+5. **Watchdog monitoring**: Are helper processes still checking in?
+
+This design ensures reliability without external dependencies.
+
+## Features
+
+- **Silent when healthy**: Prints nothing when all checks pass
+- **Deterministic checks**: Arithmetic on timestamps, no probabilistic evaluation
+- **Configurable limits**: Set age thresholds and failure streaks
+- **Delivery error detection**: Flags delivery failures separately from job status
+- **State file monitoring**: Tracks external processes via timestamp files
+- **Skip logic**: Respects schedule windows and weekdays
+- **Self-monitor exclusion**: Prevents monitors from reporting their own failures
+
+## Quick Start
 
 ```sh
-pip install git+https://github.com/ipanalytics/Agent-Cron-Evals   # or: uv pip install -e .
-cp examples/checks.example.json ~/.hermes/cron-evals.json         # then edit the job ids
+pip install git+https://github.com/ipanalytics/Agent-Cron-Evals
+cp examples/checks.example.json ~/.hermes/cron-evals.json
 agent-cron-evals --config ~/.hermes/cron-evals.json
 ```
 
-The run above prints nothing when everything is healthy, and something like this when it is not:
+When all checks pass, the output is empty. When problems exist:
 
 ```
 morning digest: last run 31.4 h ago, limit 27.0 h
@@ -39,11 +60,38 @@ watchlist autofetch: has not checked in for 4.2 h (expected every 3.5 h)
 invoices: 3 failures in a row
 ```
 
-## The no-model cron pattern
+## Installation
 
-This tool is built to run from a cron entry with **no agent and no model** attached: the text
-goes straight into a message, so a healthy run must produce no message at all. In a Hermes-style
-scheduler that is one job with a script and no prompt:
+Install from PyPI or directly from GitHub:
+
+```sh
+pip install agent-cron-evals
+# or from source:
+pip install git+https://github.com/ipanalytics/Agent-Cron-Evals
+# or using uv:
+uv pip install git+https://github.com/ipanalytics/Agent-Cron-Evals
+```
+
+## Usage
+
+### Command Line Interface
+
+```sh
+agent-cron-evals --config evals.json                 # problems only (for cron)
+agent-cron-evals --config evals.json --all           # every check plus summary
+agent-cron-evals --config evals.json --json          # full record as JSON
+agent-cron-evals --config evals.json --quiet         # write record, print nothing
+agent-cron-evals --config evals.json --jobs other.json --output /tmp/evals.json
+```
+
+### Exit Codes
+
+- `0`: Checks ran successfully (problems reported in output)
+- `2`: Config or job list could not be read
+
+### Example Cron Pattern
+
+I'm designed for the no-model cron pattern:
 
 ```json
 {
@@ -55,15 +103,37 @@ scheduler that is one job with a script and no prompt:
 }
 ```
 
-`no_agent: true` is the important field: stdout is delivered verbatim and an empty stdout sends
-nothing at all.
+The `no_agent: true` field ensures stdout is delivered verbatim. An empty stdout sends nothing at all.
 
-Two properties make this safe to run every hour: it never writes to the job file, and it never
-raises on a missing or unreadable file — a broken state file is a finding, not a traceback.
+## Checks Reference
 
-## The config file
+| Check Name | What It Verifies | Triggers When | Result/Skip Meaning |
+|------------|------------------|---------------|---------------------|
+| Job existence | Job is in schedule file | Job ID not found | FAIL: "missing" |
+| Job enabled | Job is enabled | `enabled: false` | SKIP: "disabled" |
+| Schedule window | Inside configured hours | Outside `hours` window | SKIP: "outside its window" |
+| Weekday check | Today is allowed day | Not in `days` list | SKIP: "not scheduled today" |
+| Freshness | Recent run within limit | Age > `max_age_seconds` | FAIL: age exceeded |
+| Status check | Success status | `last_status` ≠ `require_status` | FAIL: status mismatch |
+| Delivery errors | No delivery problems | `last_delivery_error` exists | FAIL: delivery failed |
+| Failure streaks | Not in streak | `failure_streak` ≥ `streak_limit` | FAIL: consecutive failures |
+| State files | External processes alive | Timestamp > `max_age_seconds` | FAIL: process stale |
 
-One JSON object. Everything except `checks` is optional; defaults are shown in the example.
+## Configuration
+
+Configuration uses a JSON file with these keys:
+
+| Key | Type | Description | Default |
+|-----|------|-------------|---------|
+| `jobs_file` | string | Path to job schedule file | `"~/.hermes/cron/jobs.json"` |
+| `output` | string | Where to write JSON record | `"~/.hermes/data/cron_evals.json"` |
+| `delivery` | boolean | Check for delivery errors | `true` |
+| `streak_limit` | integer | Failures in a row to report | `3` |
+| `self_monitors` | array | Job IDs to exclude from streak checks | `[]` |
+| `checks` | array | Job-specific checks | `[]` |
+| `state_files` | array | External state file monitors | `[]` |
+
+Example configuration:
 
 ```json
 {
@@ -83,79 +153,88 @@ One JSON object. Everything except `checks` is optional; defaults are shown in t
 }
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `checks[].job` | The job id as it appears in the schedule file. Required. |
-| `checks[].name` | Human name for the message. Falls back to the job's own name. |
-| `checks[].max_age_seconds` | How long a gap is still healthy. Default 27 h (a daily job plus slack). |
-| `checks[].days` | Only check on these weekdays — Python numbering, Monday=0 … Sunday=6 (a `7` is read as Sunday). Names work too: `["mon","tue"]`. Empty means every day. |
-| `checks[].require_status` | The status string that counts as success. Default `ok`. |
-| `self_monitors` | Job ids whose own failure streak must be ignored — a monitor that reports "3 failures in a row" about itself never resets. |
-| `state_files[].key` | The timestamp field inside the file. Default `last_check`. |
-| `streak_limit` | Failures in a row that become a problem. Default 3. |
+## Outputs/Artifacts
 
-### Two mistakes the loader refuses
+I write a JSON record to the configured output path with these fields:
 
-- a config that is not a JSON object;
-- any check without a `job` id.
+- `findings`: Array of individual check results
+- `problems`: Array of problem descriptions
+- `skipped`: Count of skipped checks
+- `failed`: Count of failed checks
+- `timestamp`: When the evaluation ran
 
-Both exit `2` with a message on stderr, because a config that silently checks nothing is worse
-than a config that fails loudly.
+Each finding contains:
+- `job`: Job ID
+- `name`: Human-readable name
+- `state`: `ok`, `fail`, or `skip`
+- `detail`: Additional information for skips
+- `age_seconds`: Age of the job's last run
+- `problems`: Array of problem strings
 
-## What runs, and when
+## Operational Notes
 
-| Question | Checked every run |
-| --- | --- |
-| Job exists, is enabled, is inside its own hours window | yes — otherwise the finding is `skip`, not `fail` |
-| Last run is recent and `last_status` is `ok` | yes, per configured check |
-| `last_delivery_error` on any enabled job | yes, for the whole job list |
-| `failure_streak >= streak_limit` | yes, minus `self_monitors` |
-| State files still ticking | yes, per configured entry |
+- **Cron integration**: Designed to run hourly with no agent attached
+- **Night checks**: A job scheduled for night may show as unhealthy during day checks - this is expected behavior, not a bug
+- **Broken files**: I never raise on missing or unreadable files - a broken state file becomes a finding, not a traceback
+- **Silent failures**: I prioritize reporting problems over failing to run
 
-The `skip` state carries the reason (`disabled`, `not scheduled today`, `outside its window`).
-Skips are never delivered; they only appear in the JSON record and under `--all`.
+## Project Scope
 
-## Command line
+I verify scheduled job health through deterministic checks. I do not:
+- Act as a scheduler
+- Modify job files
+- Provide a dashboard
+- Evaluate job output quality
+- Require network connectivity
 
-```sh
-agent-cron-evals --config evals.json                 # problems only (this is what a cron runs)
-agent-cron-evals --config evals.json --all           # every check plus a summary line
-agent-cron-evals --config evals.json --json          # the whole record
-agent-cron-evals --config evals.json --quiet         # write the record, print nothing
-agent-cron-evals --config evals.json --jobs other.json --output /tmp/evals.json
+## Use Cases
+
+- Monitoring scheduled agents in production
+- Ensuring delivery of automated reports
+- Tracking cron job reliability
+- Detecting silent failures
+- Verifying watchdog processes
+
+## Limitations
+
+- Only verifies job metadata (timestamps, status), not output quality
+- Requires properly formatted job files with timestamps
+- Limited to Unix-style cron scheduling
+- No built-in visualization beyond text output
+- Does not attempt to restart failed jobs
+
+## Repository Layout
+
+```
+agent_cron_evals/     # Main package
+├── checks.py         # The core checks implementation
+├── cli.py            # Command line interface
+├── config.py         # Configuration loading
+├── jobs.py           # Job file parsing
+├── report.py         # Output formatting
+└── schedule.py       # Schedule parsing utilities
+examples/             # Configuration examples
+tests/                # Test suite
+site/                 # Assets including banner.svg
 ```
 
-Exit codes: `0` the eval ran (problems are the *output*, not the status), `2` the config or the
-job list could not be read. That is deliberate — a monitoring job whose own exit code flips on
-findings tends to get marked failed by the scheduler and then ignored.
-
-## What this is not
-
-- **Not a scheduler.** It never writes to the job file, never re-arms a job, never fixes anything.
-- **Not a model.** No LLM anywhere: the checks are arithmetic on timestamps.
-- **Not a dashboard.** The JSON record is there to be queried; the message is the interface.
-- **Not coverage of your job's meaning.** It knows the job ran and delivered; whether the digest
-  was *any good* is a different problem (see the "task evals" idea in the linked series).
-
-## Tests
+## Testing
 
 ```sh
 python -m pytest -q     # 42 passed
 python -m ruff check .  # clean
 ```
 
-Tests cover the scheduler-file shapes that exist in the wild (bare list, `{"jobs": [...]}`,
-naive and zoned timestamps, epoch seconds, junk entries), the hours and weekday arithmetic, every
-finding state, the delivery/streak/state-file paths, and the CLI's exit codes. No network, no
-fixtures outside `tmp_path`.
+Tests cover scheduler-file shapes, hours and weekday arithmetic, every finding state, delivery/streak/state-file paths, and CLI exit codes. No network dependencies.
 
-## Related
+## Deployment
 
-- [Hermes-Agent-Ops](https://github.com/ipanalytics/Hermes-Agent-Ops) — the practice notes these
-  checks come from: module 05 (a cron for the crons), 07 (prompt linting), 20 (task evals),
-  28 (delivery health), 30 (schedule audit).
-- [Awesome Agent Ops](https://github.com/ipanalytics/Awesome-Agent-Ops) — the wider list.
+Deploy via pip or directly from source. I have no external dependencies beyond Python 3.11+.
 
 ## License
 
-MIT.
+MIT
+
+## Disclaimer
+
+I report job health based on available metadata. I do not evaluate the quality of job outputs or the business impact of failures.
