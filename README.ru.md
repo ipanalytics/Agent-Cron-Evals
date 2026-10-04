@@ -2,7 +2,7 @@
 
 _English version: [README.md](README.md)_
 
-_Детерминированные проверки для заданий по расписанию: запускались ли, успешно ли, дошёл ли вывод, жив ли сторож_
+_Надёжность кронов для LLM-агентов (Hermes Agent, Claude Code, любой планировщик): детерминированные проверки — запускалось ли, успешно ли, дошёл ли вывод, жив ли сторож_
 
 [![License: MIT](https://img.shields.io/github/license/ipanalytics/Agent-Cron-Evals)](LICENSE)
 [![Python: >=3.11](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org/downloads/)

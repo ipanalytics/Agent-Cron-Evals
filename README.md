@@ -2,7 +2,7 @@
 
 _Русская версия: [README.ru.md](README.ru.md)_
 
-_Deterministic checks for scheduled agent jobs: did it run, did it succeed, did the output arrive, is the watchdog still alive_
+_Cron reliability for LLM agents (Hermes Agent, Claude Code, any scheduler): deterministic checks — did the job run, did it succeed, did the output arrive, is the watchdog still alive_
 
 [![License: MIT](https://img.shields.io/github/license/ipanalytics/Agent-Cron-Evals)](LICENSE)
 [![Python: >=3.11](https://img.shields.io/badge/python-3.11+-blue.svg)](https://python.org/downloads/)
